@@ -7,7 +7,7 @@ close all
 
 SMin=0;
 SMax=50;
-nEls=160;
+nEls=20;
 [nN,nodes,connect,nB,bEls,bPts]=mesh(SMin,SMax,nEls);
 
 
@@ -112,50 +112,50 @@ U = zeros(m, Nt+1);
 U0 = zeros(m, 1);
 
 % Compute U0
-% for e = 1:nEls
-%     x1 = nodes(connect(e,1));
-%     x2 = nodes(connect(e,2));
-% 
-%     nLoc = elDof(e);
-% 
-%     % Reference sample points for this element
-%     xiSamples = linspace(-1, 1, nLoc);
-% 
-%     Nmat = zeros(nLoc, nLoc);   % local shape matrix
-%     fvec = zeros(nLoc, 1);      % local target (payoff) values
-% 
-%     for k = 1:nLoc
-%         xi = xiSamples(k);
-% 
-%         % shape functions at this reference point
-%         [N, ~] = shape(xi, e, pDeg, pType);
-% 
-%         % fill row of Nmat
-%         Nmat(k, :) = N(:).';
-% 
-%         % map xi -> physical S
-%         Sx = (x1*(1 - xi) + x2*(1 + xi))/2;
-% 
-%         % payoff at this point
-%         fvec(k) = max(Sx - K, 0);
-%     end
-% 
-%     % Solve for local DOFs that best fit the payoff at sample points
-%     u_loc = Nmat \ fvec;
-% 
-%     % Scatter to global U0
-%     for a = 1:nLoc
-%         gi = dFreedom(e, a);
-%         U0(gi) = u_loc(a);
-%     end
-% end
+for e = 1:nEls
+    x1 = nodes(connect(e,1));
+    x2 = nodes(connect(e,2));
+
+    nLoc = elDof(e);
+
+    % Reference sample points for this element
+    xiSamples = linspace(-1, 1, nLoc);
+
+    Nmat = zeros(nLoc, nLoc);   % local shape matrix
+    fvec = zeros(nLoc, 1);      % local target (payoff) values
+
+    for k = 1:nLoc
+        xi = xiSamples(k);
+
+        % shape functions at this reference point
+        [N, ~] = shape(xi, e, pDeg, pType);
+
+        % fill row of Nmat
+        Nmat(k, :) = N(:).';
+
+        % map xi -> physical S
+        Sx = (x1*(1 - xi) + x2*(1 + xi))/2;
+
+        % payoff at this point
+        fvec(k) = max(Sx - K, 0);
+    end
+
+    % Solve for local DOFs that best fit the payoff at sample points
+    u_loc = Nmat \ fvec;
+
+    % Scatter to global U0
+    for a = 1:nLoc
+        gi = dFreedom(e, a);
+        U0(gi) = u_loc(a);
+    end
+end
 
 %====================================%
 %======= Manufactured Solution ======%
 %====================================%
 % Time stepping (Crank–Nicolson in tau)
-u0_fun = @(S) exp(-t0) .* S .* (SMax - S);   % MMS at tau=t0 (usually 0)
-U0 = buildU0(nEls, nodes, connect, elDof, dFreedom, pDeg, pType, u0_fun);
+% u0_fun = @(S) exp(-t0) .* S .* (SMax - S);   % MMS at tau=t0 (usually 0)
+% U0 = buildU0(nEls, nodes, connect, elDof, dFreedom, pDeg, pType, u0_fun);
 
 % Initialize the global solution vector U with the initial condition U0
 U(:,1) = U0;
@@ -164,59 +164,57 @@ U(:,1) = U0;
 %====== Black-Scholes Solution ======%
 %====================================%
 
-% U(:,1) = U0;
-% 
-% F = zeros(m,1);          % assume no source term for Black–Scholes
-% 
-% L = M + 0.5*dt*A;
-% R = M - 0.5*dt*A;
-% 
-% for n = 1:Nt
-%     tau_n   = n*dt/2;        % or time(n) if you stored it
-%     bn_raw  = R*U(:,n) + dt/2*F;
-% 
-%     % Apply Dirichlet BCs for this time:
-%    [L_bc, bn] = applyBC_time(L, bn_raw, dFreedom, SMax, K, r, tau_n);
-% 
-% 
-%    U(:,n+1) = L_bc \ bn;
-% end
+F = zeros(m,1);          % assume no source term for Black–Scholes
+
+L = M + 0.5*dt*A;
+R = M - 0.5*dt*A;
+
+for n = 1:Nt
+    tau_n   = n*dt/2;        % or time(n) if you stored it
+    bn_raw  = R*U(:,n) + dt/2*F;
+
+    % Apply Dirichlet BCs for this time:
+   [L_bc, bn] = applyBC_time(L, bn_raw, dFreedom, SMax, K, r, tau_n);
+
+
+   U(:,n+1) = L_bc \ bn;
+end
 
 %====================================%
 %======= Manufactured Solution ======%
 %====================================%
 
-idxR = rightLocalIdx(dFreedom, elDof);
-cL   = dFreedom(1,1);
-cR   = dFreedom(nEls, idxR);
-
-for n = 1:(Nt)
-    tau_n   = (n-1)*dt;
-    tau_np1 = (n)*dt;
-
-    % enforce BCs on current state BEFORE R*U(:,n)
-    U(cL,n) = 0;
-    U(cR,n) = 0;
-
-    [M, A, Fn]   = time_element(nEls, nodes, connect, xiQ, wQ, pDeg, pType, elDof, dFreedom, tau_n);
-    [~, ~, Fnp1] = time_element(nEls, nodes, connect, xiQ, wQ, pDeg, pType, elDof, dFreedom, tau_np1);
-
-    L = M + 0.5*dt*A;
-    R = M - 0.5*dt*A;
-
-    bn_raw = R*U(:,n) + 0.5*dt*(Fn + Fnp1);
-
-    [L_bc, bn] = applyBC_MMS(L, bn_raw, dFreedom, elDof);
-
-    U(:,n+1) = L_bc \ bn;
-
-    % enforce again after solve
-    U(cL,n+1) = 0;
-    U(cR,n+1) = 0;
-end
+% idxR = rightLocalIdx(dFreedom, elDof);
+% cL   = dFreedom(1,1);
+% cR   = dFreedom(nEls, idxR);
+% 
+% for n = 1:(Nt)
+%     tau_n   = (n-1)*dt;
+%     tau_np1 = (n)*dt;
+% 
+%     % enforce BCs on current state BEFORE R*U(:,n)
+%     U(cL,n) = 0;
+%     U(cR,n) = 0;
+% 
+%     [M, A, Fn]   = time_element(nEls, nodes, connect, xiQ, wQ, pDeg, pType, elDof, dFreedom, tau_n);
+%     [~, ~, Fnp1] = time_element(nEls, nodes, connect, xiQ, wQ, pDeg, pType, elDof, dFreedom, tau_np1);
+% 
+%     L = M + 0.5*dt*A;
+%     R = M - 0.5*dt*A;
+% 
+%     bn_raw = R*U(:,n) + 0.5*dt*(Fn + Fnp1);
+% 
+%     [L_bc, bn] = applyBC_MMS(L, bn_raw, dFreedom, elDof);
+% 
+%     U(:,n+1) = L_bc \ bn;
+% 
+%     % enforce again after solve
+%     U(cL,n+1) = 0;
+%     U(cR,n+1) = 0;
+% end
+% 
 
 u = U(:,end);   % this is U(T,·) in tau, i.e. price at t=0
-
 
 
 %**************post-processing*********************************************
@@ -261,3 +259,66 @@ title('Error norms vs time')
 legend('L^2 error', 'H^1 error', 'Location', 'best')
 hold off
 
+
+%% ================================
+% QoI convergence study (h + p)
+% ================================
+
+Sstar = 1.01*K;                  % choose away from kink at S=K (important)
+
+nEls_list = [10, 20, 40, 80, 160, 320]; % 6 meshes
+p_list    = [1 2];                      % p-enrichment
+
+Nt_test = 400;                          % keep time error small and fixed
+
+% Reference solution (fine)
+nEls_ref = 1000;
+Nt_ref   = 200;
+p_ref    = 2;
+
+fprintf("\n=== Computing Qref (reference) ===\n");
+Qref = solve_and_QoI( ...
+    SMin,SMax,nEls_ref,p_ref,t0,T,Nt_ref, ...
+    K,r,Sstar);
+fprintf("Qref = %.12e\n\n", Qref);
+
+% Sweep and print tables
+for p = p_list
+    Qh  = zeros(numel(nEls_list),1);
+    Err = zeros(numel(nEls_list),1);
+    hh  = zeros(numel(nEls_list),1);
+
+    fprintf("=== QoI convergence for p=%d ===\n", p);
+
+    for i = 1:numel(nEls_list)
+        nEls_i = nEls_list(i);
+        hh(i) = (SMax - SMin)/nEls_i;
+
+        Qh(i) = solve_and_QoI( ...
+            SMin,SMax,nEls_i,p,t0,T,Nt_test, ...
+            K,r,Sstar);
+
+        Err(i) = abs(Qh(i) - Qref);
+
+        fprintf("nEls=%4d  h=%.4e  Qh=%.12e  |Qh-Qref|=%.3e\n", ...
+            nEls_i, hh(i), Qh(i), Err(i));
+    end
+
+    % Plot error vs h (log-log)
+    figure(100); hold on; grid on;
+    loglog(hh, Err, '-o', 'LineWidth', 2);
+
+    % Also dump a table for your teammate
+    TBL = table(nEls_list(:), hh, Qh, Err, ...
+        'VariableNames', {'nEls','h','Qh','AbsError'});
+    disp(TBL);
+end
+
+fprintf('\n\n');
+
+figure(100);
+set(gca,'XDir','reverse');
+xlabel('h = (S_{max}-S_{min})/nEls');
+ylabel('|Q_h - Q_{ref}|');
+title(sprintf('QoI convergence at S* = %.4g, T = %.4g', Sstar, T));
+legend('p=1','p=2','Location','best');

@@ -20,6 +20,6 @@ uss = -2 * exp(-t);
 % Manufactured Solution placed on fQ %
 %====================================%
 
-fQ = ut -( (.5 * sigma^2 * xq^2 * uss) + (r * xq * us) - (r * u));
+fQ = 0; %ut -( (.5 * sigma^2 * xq^2 * uss) + (r * xq * us) - (r * u));
 
 end
