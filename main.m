@@ -154,7 +154,7 @@ end
 %======= Manufactured Solution ======%
 %====================================%
 % Time stepping (Crank–Nicolson in tau)
-% u0_fun = @(S) exp(-t0) .* S .* (SMax - S);   % MMS at tau=t0 (usually 0)
+% u0_fun = @(S) (1-t0) .* S .* (SMax - S);   % MMS at tau=t0 (usually 0)
 % U0 = buildU0(nEls, nodes, connect, elDof, dFreedom, pDeg, pType, u0_fun);
 
 % Initialize the global solution vector U with the initial condition U0
@@ -184,9 +184,11 @@ end
 %======= Manufactured Solution ======%
 %====================================%
 
-% idxR = rightLocalIdx(dFreedom, elDof);
-% cL   = dFreedom(1,1);
-% cR   = dFreedom(nEls, idxR);
+% idxL = leftLocalIdx(1, pDeg, pType);
+% idxR = rightLocalIdx(nEls, pDeg, pType);
+% 
+% cL = dFreedom(1, idxL);
+% cR = dFreedom(nEls, idxR);
 % 
 % for n = 1:(Nt)
 %     tau_n   = (n-1)*dt;
@@ -204,7 +206,7 @@ end
 % 
 %     bn_raw = R*U(:,n) + 0.5*dt*(Fn + Fnp1);
 % 
-%     [L_bc, bn] = applyBC_MMS(L, bn_raw, dFreedom, elDof);
+%     [L_bc, bn] = applyBC_MMS(L, bn_raw, dFreedom, pDeg, pType);
 % 
 %     U(:,n+1) = L_bc \ bn;
 % 
@@ -212,9 +214,9 @@ end
 %     U(cL,n+1) = 0;
 %     U(cR,n+1) = 0;
 % end
-% 
 
-u = U(:,end);   % this is U(T,·) in tau, i.e. price at t=0
+
+u = U(:,end-1);   % this is U(T,·) in tau, i.e. price at t=0
 
 
 %**************post-processing*********************************************
@@ -260,11 +262,14 @@ legend('L^2 error', 'H^1 error', 'Location', 'best')
 hold off
 
 
+% Nelem = [10 20 40 80 160 320];
+% results = convergenceStudy_MMS(Nelem, 200, 2, 0, 50, 0, 1);
+
 %% ================================
 % QoI convergence study (h + p)
 % ================================
 
-Sstar = 1.01*K;                  % choose away from kink at S=K (important)
+Sstar = 1.30*K;
 
 nEls_list = [10, 20, 40, 80, 160, 320]; % 6 meshes
 p_list    = [1 2];                      % p-enrichment
@@ -308,7 +313,6 @@ for p = p_list
     figure(100); hold on; grid on;
     loglog(hh, Err, '-o', 'LineWidth', 2);
 
-    % Also dump a table for your teammate
     TBL = table(nEls_list(:), hh, Qh, Err, ...
         'VariableNames', {'nEls','h','Qh','AbsError'});
     disp(TBL);

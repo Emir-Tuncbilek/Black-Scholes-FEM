@@ -11,15 +11,15 @@ bQ = r;                            % reaction term
 %======= Manufactured Solution ======%
 %====================================%
 
-u = exp(-t) * xq * (Smax - xq);
-ut = -u;
-us = exp(-t) * (Smax - 2*xq);
-uss = -2 * exp(-t);
+u = (1-t) * xq * (Smax - xq);
+ut = -xq * (Smax - xq);
+us = (1-t) * (Smax - 2*xq);
+uss = -2 * (1-t);
 
 %====================================%
 % Manufactured Solution placed on fQ %
 %====================================%
 
-fQ = 0; %ut -( (.5 * sigma^2 * xq^2 * uss) + (r * xq * us) - (r * u));
+fQ = 0; % ut -( (.5 * sigma^2 * xq^2 * uss) + (r * xq * us) - (r * u));
 
 end
