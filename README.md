@@ -36,20 +36,6 @@ for time integration.
 
 ---
 
-## Academic Context
-
-This project was developed as part of the course:
-
-- **MTH8207 – Finite Element Methods**  
-- **Instructor:** Prof. Serge Prudhomme  
-- **Institution:** Polytechnique Montréal (PolyMTL)
-
-The base 1D FEM solver was provided by the instructor for instructional purposes.  
-All additional features—including time stepping, boundary-condition handling,
-manufactured solutions, convergence studies, and QoI estimation—were implemented
-by the authors.
-
----
 
 ## Authors
 
